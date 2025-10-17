@@ -3,12 +3,17 @@ import re
 import pandas as pd
 from PIL import Image
 from pptx import Presentation
-from pptx.util import Inches, Pt
+from pptx.util import Inches, Pt, Cm
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
 
 class GraduationPPTGenerator:
     DPI = 96  # konsisten dengan PowerPoint
+    # Ukuran frame foto (inci): tambahkan lebar sedikit, kurangi tinggi
+    PHOTO_FRAME_W_CM = 4.69
+    PHOTO_FRAME_H_CM = 7.04
+    FRAME_LEFT_CM = 1.27   # setara ~0.5 inch
+    FRAME_TOP_CM = 3.81    # setara ~1.5 inch
 
     def __init__(self):
         self.templates = {
@@ -55,18 +60,23 @@ class GraduationPPTGenerator:
 
         if img_ratio > frame_ratio:
             # Fit to width
-            width = frame_width
-            height = int(float(width) / img_ratio)
+            width = int(frame_width)
+            height = int(width / img_ratio)
         else:
             # Fit to height
-            height = frame_height
-            width = int(float(height) * img_ratio)
+            height = int(frame_height)
+            width = int(height * img_ratio)
 
-        offset_left = left + (frame_width - width) / 2
-        offset_top = top + (frame_height - height) / 2
+        # Ensure integer EMUs for positions
+        int_left = int(left)
+        int_top = int(top)
+        int_fw = int(frame_width)
+        int_fh = int(frame_height)
+        offset_left = int_left + (int_fw - int(width)) // 2
+        offset_top = int_top + (int_fh - int(height)) // 2
 
         try:
-            return slide.shapes.add_picture(image_path, offset_left, offset_top, width=width, height=height)
+            return slide.shapes.add_picture(image_path, int(offset_left), int(offset_top), width=int(width), height=int(height))
         except Exception as e:
             print(f"Error adding fitted picture {image_path}: {e}")
             return None
@@ -153,25 +163,15 @@ class GraduationPPTGenerator:
         if os.path.exists(template_path):
             self._set_background_image(slide, template_path)
 
-        # Posisi frame foto (area tempat foto seharusnya berada)
-        frame_left, frame_top = Inches(0.5), Inches(1.5)
-        frame_w, frame_h = Inches(2.5), Inches(3.5)
-        center_x = frame_left + frame_w / 2
-        center_y = frame_top + frame_h / 2
+        # Posisi dan ukuran frame foto dalam CM
+        frame_left, frame_top = Cm(self.FRAME_LEFT_CM), Cm(self.FRAME_TOP_CM)
+        frame_w, frame_h = Cm(self.PHOTO_FRAME_W_CM), Cm(self.PHOTO_FRAME_H_CM)
 
-        # Foto: TARUH DI TENGAH TANPA RESIZE; kalau kebesaran, fallback ke fit.
+        # Foto: fit ke dalam frame tanpa distorsi (auto center di dalam frame)
         if photo_path and os.path.exists(photo_path):
             try:
-                pic = self._add_picture_center_no_resize(slide, photo_path, center_x, center_y)
-                if pic is not None:
-                    # Jika melebihi frame, hapus dan fit ke frame
-                    out_left = (pic.left < frame_left)
-                    out_top = (pic.top < frame_top)
-                    out_right = (pic.left + pic.width > frame_left + frame_w)
-                    out_bottom = (pic.top + pic.height > frame_top + frame_h)
-                    if out_left or out_top or out_right or out_bottom:
-                        pic._element.getparent().remove(pic._element)
-                        self._add_picture_fit(slide, photo_path, frame_left, frame_top, frame_w, frame_h)
+                # Tambahkan gambar ter-fit ke frame; fungsi sudah mengatur centering
+                self._add_picture_fit(slide, photo_path, frame_left, frame_top, frame_w, frame_h)
             except Exception as e:
                 print(f"Error adding photo {photo_path}: {e}")
 
