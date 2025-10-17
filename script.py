@@ -189,12 +189,11 @@ class GraduationPPTGenerator:
         # Add text boxes
         text_boxes = [
             (program, Inches(3.5), Inches(2.0), Inches(4), Inches(0.5), 16, True),
-            (nama, Inches(3.5), Inches(2.8), Inches(4), Inches(0.6), 20, True),
-            (f"{nim}", Inches(3.5), Inches(3.5), Inches(4), Inches(0.4), 14, False),
-            (f"{ipk}", Inches(3.5), Inches(3.9), Inches(4), Inches(0.4), 14, False),
-            (f"{tak}", Inches(3.5), Inches(4.3), Inches(4), Inches(0.4), 14, False),
-            (f"{dosen_wali}", Inches(3.5), Inches(4.7), Inches(4), Inches(0.4), 12, False),
-            (f"\n{dosen_pembimbing}", Inches(3.5), Inches(5.1), Inches(4), Inches(0.8), 12, False),
+            (nama, Inches(3.5), Inches(2.8), Inches(4), Inches(0.6), 24, True),
+            (f"NIM : {nim}", Inches(3.5), Inches(3.5), Inches(4), Inches(0.4), 18, False),
+            (f"IPK : {ipk} – TAK : {tak}", Inches(3.5), Inches(3.9), Inches(4), Inches(0.4), 18, False),
+            (f"Dosen Wali : {dosen_wali}", Inches(3.5), Inches(4.7), Inches(4), Inches(0.4), 16, False),
+            (f"\nDosen Pembimbing : {dosen_pembimbing}", Inches(3.5), Inches(5.1), Inches(4), Inches(0.8), 16, False),
         ]
         
         for text, left, top, width, height, font_size, bold in text_boxes:
@@ -203,15 +202,21 @@ class GraduationPPTGenerator:
                 text_frame = textbox.text_frame
                 text_frame.clear()
                 p = text_frame.paragraphs[0]
-                p.text = str(text)
+                p.text = str(text).upper()
                 p.alignment = PP_ALIGN.LEFT
                 
-                # Format text
-                font = p.font
-                font.name = 'Arial'
-                font.size = Pt(font_size)
-                font.bold = True
-                font.color.rgb = RGBColor(0, 0, 0)  # Black color
+                # Format text for all paragraphs/runs to ensure consistency
+                for paragraph in text_frame.paragraphs:
+                    # Ensure at least one run exists
+                    if len(paragraph.runs) == 0:
+                        run = paragraph.add_run()
+                        run.text = paragraph.text
+                        paragraph.text = ''
+                    for run in paragraph.runs:
+                        run.font.name = 'Arial'
+                        run.font.size = Pt(font_size)
+                        run.font.bold = True
+                        run.font.color.rgb = RGBColor(0, 0, 0)
     
     def generate_ppt_per_program(self, df, output_dir='output'):
         """Generate separate PPT files for each program"""
