@@ -180,11 +180,12 @@ class GraduationPPTGenerator:
         dosen_pembimbing1 = student_data.get('Nama Dosen Pembimbing 1', '')
         dosen_pembimbing2 = student_data.get('Nama Dosen Pembimbing 2', '')
         
-        # Combine pembimbing names
-        if pd.notna(dosen_pembimbing2) and dosen_pembimbing2 != '':
-            dosen_pembimbing = f"{dosen_pembimbing1}\n{dosen_pembimbing2}"
-        else:
-            dosen_pembimbing = dosen_pembimbing1
+        # Combine pembimbing names (keep raw; formatting handled below)
+        pembimbing_names = []
+        if pd.notna(dosen_pembimbing1) and str(dosen_pembimbing1).strip() != '':
+            pembimbing_names.append(str(dosen_pembimbing1))
+        if pd.notna(dosen_pembimbing2) and str(dosen_pembimbing2).strip() != '':
+            pembimbing_names.append(str(dosen_pembimbing2))
         
         # Add text boxes
         text_boxes = [
@@ -193,7 +194,6 @@ class GraduationPPTGenerator:
             (f"NIM : {nim}", Inches(3.5), Inches(3.5), Inches(4), Inches(0.4), 18, False),
             (f"IPK : {ipk} – TAK : {tak}", Inches(3.5), Inches(3.9), Inches(4), Inches(0.4), 18, False),
             (f"Dosen Wali : {dosen_wali}", Inches(3.5), Inches(4.7), Inches(4), Inches(0.4), 16, False),
-            (f"\nDosen Pembimbing : {dosen_pembimbing}", Inches(3.5), Inches(5.1), Inches(4), Inches(0.8), 16, False),
         ]
         
         for text, left, top, width, height, font_size, bold in text_boxes:
@@ -217,6 +217,53 @@ class GraduationPPTGenerator:
                         run.font.size = Pt(font_size)
                         run.font.bold = True
                         run.font.color.rgb = RGBColor(0, 0, 0)
+
+        # Add label "DOSEN PEMBIMBING :" in its own shape and names in another shape
+        label_left = Inches(3.5)
+        label_top = Inches(5.1)
+        label_width = Inches(2.2)  # approximate width to reach just after the colon
+        label_height = Inches(0.4)
+        label_box = slide.shapes.add_textbox(label_left, label_top, label_width, label_height)
+        label_tf = label_box.text_frame
+        label_tf.clear()
+        p_label = label_tf.paragraphs[0]
+        p_label.alignment = PP_ALIGN.LEFT
+        run_label = p_label.add_run()
+        run_label.text = "DOSEN PEMBIMBING :".upper()
+        run_label.font.name = 'Arial'
+        run_label.font.size = Pt(16)
+        run_label.font.bold = True
+        run_label.font.color.rgb = RGBColor(0, 0, 0)
+
+        # Names shape placed so its left edge starts exactly after the colon
+        names_left = label_left + label_width
+        names_top = label_top
+        names_width = Inches(4)  # room for names
+        # height enough for up to two lines; pptx will auto-grow vertically within shape limit
+        names_height = Inches(0.8)
+        names_box = slide.shapes.add_textbox(names_left, names_top, names_width, names_height)
+        names_tf = names_box.text_frame
+        names_tf.clear()
+        if len(pembimbing_names) > 0:
+            # First name on first paragraph
+            p_name = names_tf.paragraphs[0]
+            p_name.alignment = PP_ALIGN.LEFT
+            run_n1 = p_name.add_run()
+            run_n1.text = str(pembimbing_names[0]).upper()
+            run_n1.font.name = 'Arial'
+            run_n1.font.size = Pt(16)
+            run_n1.font.bold = True
+            run_n1.font.color.rgb = RGBColor(0, 0, 0)
+            # Additional names on new lines below
+            for extra_name in pembimbing_names[1:]:
+                p_more = names_tf.add_paragraph()
+                p_more.alignment = PP_ALIGN.LEFT
+                run_more = p_more.add_run()
+                run_more.text = str(extra_name).upper()
+                run_more.font.name = 'Arial'
+                run_more.font.size = Pt(16)
+                run_more.font.bold = True
+                run_more.font.color.rgb = RGBColor(0, 0, 0)
     
     def generate_ppt_per_program(self, df, output_dir='output'):
         """Generate separate PPT files for each program"""
