@@ -15,6 +15,59 @@ class GraduationPPTGenerator:
             'Non Predikat': 'templates/bg_non_predikat.png'
         }
         
+    def _set_slide_size_to_image(self, prs, image_path):
+        """Resize slide to match the aspect ratio of the given image for full-bleed.
+
+        Keeps the current slide width and adjusts height to maintain the image ratio.
+        """
+        if not image_path or not os.path.exists(image_path):
+            return
+        try:
+            with Image.open(image_path) as img:
+                img_w, img_h = img.size
+            if img_w == 0 or img_h == 0:
+                return
+            base_width = prs.slide_width
+            new_height = int(base_width * img_h / img_w)
+            prs.slide_height = new_height
+        except Exception as e:
+            print(f"Error sizing slide to image {image_path}: {e}")
+
+    def _add_picture_fit(self, slide, image_path, left, top, frame_width, frame_height):
+        """Add an image scaled to fit inside a frame without distortion.
+
+        The image preserves aspect ratio and is centered within the target frame.
+        """
+        try:
+            with Image.open(image_path) as img:
+                img_width_px, img_height_px = img.size
+        except Exception as e:
+            print(f"Error opening image {image_path}: {e}")
+            return None
+
+        # Convert frame sizes (pptx Emu) to pixels-like arbitrary units by ratio only
+        frame_ratio = float(frame_width) / float(frame_height)
+        img_ratio = img_width_px / img_height_px if img_height_px else 1.0
+
+        if img_ratio > frame_ratio:
+            # Fit to width
+            width = frame_width
+            height = int(float(width) / img_ratio)
+        else:
+            # Fit to height
+            height = frame_height
+            width = int(float(height) * img_ratio)
+
+        # Center inside frame
+        offset_left = left + (frame_width - width) / 2
+        offset_top = top + (frame_height - height) / 2
+
+        try:
+            return slide.shapes.add_picture(image_path, offset_left, offset_top, width=width, height=height)
+        except Exception as e:
+            print(f"Error adding fitted picture {image_path}: {e}")
+            return None
+
     def read_excel_data(self, file_path):
         """Read Excel file and return DataFrame"""
         try:
@@ -75,20 +128,25 @@ class GraduationPPTGenerator:
         slide_layout = prs.slide_layouts[6]  # Blank layout
         slide = prs.slides.add_slide(slide_layout)
         
-        # Set background image
+        # Set background image proportionally (no distortion)
         if os.path.exists(template_path):
-            slide.shapes.add_picture(template_path, 0, 0, 
-                                   width=prs.slide_width, height=prs.slide_height)
+            self._add_picture_fit(
+                slide,
+                template_path,
+                0,
+                0,
+                prs.slide_width,
+                prs.slide_height,
+            )
         
-        # Add student photo
+        # Add student photo proportionally into designated frame area
         if photo_path and os.path.exists(photo_path):
             try:
-                # Resize and add photo
                 left = Inches(0.5)
                 top = Inches(1.5)
                 width = Inches(2.5)
                 height = Inches(3.5)
-                slide.shapes.add_picture(photo_path, left, top, width, height)
+                self._add_picture_fit(slide, photo_path, left, top, width, height)
             except Exception as e:
                 print(f"Error adding photo {photo_path}: {e}")
         
@@ -99,8 +157,6 @@ class GraduationPPTGenerator:
     
     def add_student_info(self, slide, student_data):
         """Add student information to slide"""
-        # Faculty (fixed)
-        faculty_text = "Telkom University Surabaya"
         
         # Program
         program = student_data.get('PROGRAM STUDI', '')
@@ -132,14 +188,13 @@ class GraduationPPTGenerator:
         
         # Add text boxes
         text_boxes = [
-            (faculty_text, Inches(3.5), Inches(1.5), Inches(4), Inches(0.5), 18, True),
             (program, Inches(3.5), Inches(2.0), Inches(4), Inches(0.5), 16, True),
             (nama, Inches(3.5), Inches(2.8), Inches(4), Inches(0.6), 20, True),
-            (f"NIM: {nim}", Inches(3.5), Inches(3.5), Inches(4), Inches(0.4), 14, False),
-            (f"IPK: {ipk}", Inches(3.5), Inches(3.9), Inches(4), Inches(0.4), 14, False),
-            (f"TAK: {tak}", Inches(3.5), Inches(4.3), Inches(4), Inches(0.4), 14, False),
-            (f"Dosen Wali: {dosen_wali}", Inches(3.5), Inches(4.7), Inches(4), Inches(0.4), 12, False),
-            (f"Dosen Pembimbing:\n{dosen_pembimbing}", Inches(3.5), Inches(5.1), Inches(4), Inches(0.8), 12, False),
+            (f"{nim}", Inches(3.5), Inches(3.5), Inches(4), Inches(0.4), 14, False),
+            (f"{ipk}", Inches(3.5), Inches(3.9), Inches(4), Inches(0.4), 14, False),
+            (f"{tak}", Inches(3.5), Inches(4.3), Inches(4), Inches(0.4), 14, False),
+            (f"{dosen_wali}", Inches(3.5), Inches(4.7), Inches(4), Inches(0.4), 12, False),
+            (f"\n{dosen_pembimbing}", Inches(3.5), Inches(5.1), Inches(4), Inches(0.8), 12, False),
         ]
         
         for text, left, top, width, height, font_size, bold in text_boxes:
@@ -155,7 +210,7 @@ class GraduationPPTGenerator:
                 font = p.font
                 font.name = 'Arial'
                 font.size = Pt(font_size)
-                font.bold = bold
+                font.bold = True
                 font.color.rgb = RGBColor(0, 0, 0)  # Black color
     
     def generate_ppt_per_program(self, df, output_dir='output'):
@@ -181,6 +236,17 @@ class GraduationPPTGenerator:
             
             # Create presentation
             prs = Presentation()
+            
+            # Determine a representative template image for slide sizing
+            try:
+                first_row = program_data.iloc[0]
+                first_template_name = self.get_predikat_template(first_row.get('PREDIKAT KELULUSAN', ''))
+                first_template_path = self.templates.get(first_template_name, self.templates['Non Predikat'])
+            except Exception:
+                first_template_path = self.templates['Non Predikat']
+            
+            # Match slide size to background image aspect ratio for full-bleed
+            self._set_slide_size_to_image(prs, first_template_path)
             
             # Add slides for each student
             for _, student in program_data.iterrows():
