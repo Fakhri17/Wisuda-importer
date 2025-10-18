@@ -224,32 +224,14 @@ class GraduationPPTGenerator:
         # Informasi utama
         self._add_textbox(slide, program, Inches(3.5), Inches(2.0), Inches(4), Inches(0.5), font_size=14, bold=True)
         self._add_textbox(slide, nama, Inches(3.5), Inches(2.8), Inches(4), Inches(0.6), font_size=19, bold=True)
-        self._add_textbox(slide, f"NIM : {nim}", Inches(3.5), Inches(3.5), Inches(4), Inches(0.4), font_size=16, bold=True)
-        self._add_textbox(slide, f"IPK : {ipk} – TAK : {tak}", Inches(3.5), Inches(3.9), Inches(4), Inches(0.4), font_size=16, bold=True)
-        self._add_textbox(slide, f"DOSEN WALI : {dosen_wali}", Inches(3.5), Inches(4.7), Inches(4), Inches(0.4), font_size=14, bold=True)
+        self._add_textbox(slide, nim, Inches(3.5), Inches(3.5), Inches(4), Inches(0.4), font_size=16, bold=True)
+        self._add_textbox(slide, ipk, Inches(3.5), Inches(3.9), Inches(1.8), Inches(0.4), font_size=16, bold=True)
+        self._add_textbox(slide, tak, Inches(5.3), Inches(3.9), Inches(1.8), Inches(0.4), font_size=16, bold=True)
+        self._add_textbox(slide, dosen_wali, Inches(3.5), Inches(4.7), Inches(4), Inches(0.4), font_size=14, bold=True)
 
-        # Label "DOSEN PEMBIMBING :" dan nama-nama dipisah shape
-        label_left = Inches(3.5)
-        label_top = Inches(5.1)
-        label_width = Inches(2.2)
-        label_height = Inches(0.4)
-
-        # Label
-        label_box = slide.shapes.add_textbox(label_left, label_top, label_width, label_height)
-        label_tf = label_box.text_frame
-        label_tf.clear()
-        p_label = label_tf.paragraphs[0]
-        p_label.alignment = PP_ALIGN.LEFT
-        run_label = p_label.add_run()
-        run_label.text = "DOSEN PEMBIMBING :"
-        run_label.font.name = 'Arial'
-        run_label.font.size = Pt(14)
-        run_label.font.bold = True
-        run_label.font.color.rgb = RGBColor(0, 0, 0)
-
-        # Names box – dimulai tepat setelah titik dua (pakai shape terpisah)
-        names_left = label_left + label_width
-        names_top = label_top
+        # Names box untuk dosen pembimbing (tanpa label)
+        names_left = Inches(3.5)
+        names_top = Inches(5.1)
         names_width = Inches(4)
         names_height = Inches(0.8)
 
