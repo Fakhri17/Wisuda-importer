@@ -1,6 +1,7 @@
 import os
 import re
 import pandas as pd
+import random
 from PIL import Image
 from pptx import Presentation
 from pptx.util import Inches, Pt, Cm
@@ -9,11 +10,13 @@ from pptx.dml.color import RGBColor
 
 class GraduationPPTGenerator:
     DPI = 96  # konsisten dengan PowerPoint
-    # Ukuran frame foto (inci): tambahkan lebar sedikit, kurangi tinggi
-    PHOTO_FRAME_W_CM = 4.69
-    PHOTO_FRAME_H_CM = 7.04
-    FRAME_LEFT_CM = 1.27   # setara ~0.5 inch
-    FRAME_TOP_CM = 3.81    # setara ~1.5 inch
+    
+    # POSISI FOTO - TENGAH FRAME MERAH
+    # Sesuaikan nilai ini agar foto berada di tengah frame merah
+    PHOTO_FRAME_W_CM = 5.0     # Lebar frame foto
+    PHOTO_FRAME_H_CM = 7.0      # Tinggi frame foto
+    FRAME_LEFT_CM = 7.0         # Posisi horizontal (tengah slide)
+    FRAME_TOP_CM = 4.5          # Posisi vertikal (tengah frame merah)
 
     def __init__(self):
         self.templates = {
@@ -41,7 +44,6 @@ class GraduationPPTGenerator:
         if not image_path or not os.path.exists(image_path):
             return
         try:
-            # Native size; asalkan ukuran slide sudah diset 1:1 dengan gambar, ini akan full-bleed
             slide.shapes.add_picture(image_path, 0, 0)
         except Exception as e:
             print(f"Error setting background image {image_path}: {e}")
@@ -59,15 +61,12 @@ class GraduationPPTGenerator:
         img_ratio = img_w / img_h if img_h else 1.0
 
         if img_ratio > frame_ratio:
-            # Fit to width
             width = int(frame_width)
             height = int(width / img_ratio)
         else:
-            # Fit to height
             height = int(frame_height)
             width = int(height * img_ratio)
 
-        # Ensure integer EMUs for positions
         int_left = int(left)
         int_top = int(top)
         int_fw = int(frame_width)
@@ -79,30 +78,6 @@ class GraduationPPTGenerator:
             return slide.shapes.add_picture(image_path, int(offset_left), int(offset_top), width=int(width), height=int(height))
         except Exception as e:
             print(f"Error adding fitted picture {image_path}: {e}")
-            return None
-
-    def _add_picture_center_no_resize(self, slide, image_path, center_x, center_y, dpi=None):
-        """
-        Tambahkan gambar pada ukuran aslinya (@DPI) dan posisikan TEPAT di tengah (tanpa resize).
-        center_x / center_y dalam EMU (pakai Inches(...) saat panggil).
-        """
-        if dpi is None:
-            dpi = self.DPI
-        if not image_path or not os.path.exists(image_path):
-            return None
-
-        with Image.open(image_path) as img:
-            w_px, h_px = img.size
-
-        width = Inches(w_px / dpi)
-        height = Inches(h_px / dpi)
-        left = center_x - width / 2
-        top = center_y - height / 2
-
-        try:
-            return slide.shapes.add_picture(image_path, left, top, width=width, height=height)
-        except Exception as e:
-            print(f"Error adding centered picture {image_path}: {e}")
             return None
 
     # =========================
@@ -159,7 +134,7 @@ class GraduationPPTGenerator:
 
         slide = prs.slides.add_slide(prs.slide_layouts[6])
 
-        # Background full-bleed TANPA distorsi
+        # Background full-bleed
         if os.path.exists(template_path):
             self._set_background_image(slide, template_path)
 
@@ -167,10 +142,9 @@ class GraduationPPTGenerator:
         frame_left, frame_top = Cm(self.FRAME_LEFT_CM), Cm(self.FRAME_TOP_CM)
         frame_w, frame_h = Cm(self.PHOTO_FRAME_W_CM), Cm(self.PHOTO_FRAME_H_CM)
 
-        # Foto: fit ke dalam frame tanpa distorsi (auto center di dalam frame)
+        # FOTO: fit ke dalam frame merah (tengah)
         if photo_path and os.path.exists(photo_path):
             try:
-                # Tambahkan gambar ter-fit ke frame; fungsi sudah mengatur centering
                 self._add_picture_fit(slide, photo_path, frame_left, frame_top, frame_w, frame_h)
             except Exception as e:
                 print(f"Error adding photo {photo_path}: {e}")
@@ -180,7 +154,7 @@ class GraduationPPTGenerator:
 
         return slide
 
-    def _add_textbox(self, slide, text, left, top, width, height, font_size=18, bold=False, upper=True):
+    def _add_textbox(self, slide, text, left, top, width, height, font_size=18, bold=False, upper=True, alignment=PP_ALIGN.LEFT):
         """Utility untuk menambah textbox konsisten."""
         if not text or str(text).strip().lower() == 'nan':
             return
@@ -190,9 +164,8 @@ class GraduationPPTGenerator:
         tf.clear()
         p = tf.paragraphs[0]
         p.text = content
-        p.alignment = PP_ALIGN.LEFT
+        p.alignment = alignment
 
-        # pastikan ada run
         if len(p.runs) == 0:
             run = p.add_run()
             run.text = content
@@ -205,7 +178,7 @@ class GraduationPPTGenerator:
             run.font.color.rgb = RGBColor(0, 0, 0)
 
     def add_student_info(self, slide, student_data):
-        """Add student information to slide."""
+        """Add student information to slide - POSISI BARU SESUAI TEMPLATE."""
         program = student_data.get('PROGRAM STUDI', '')
         nama = student_data.get('NAMA MAHASISWA', '')
         nim = student_data.get('NIM', '')
@@ -221,26 +194,36 @@ class GraduationPPTGenerator:
         if pd.notna(dosen_pembimbing2) and str(dosen_pembimbing2).strip() != '':
             pembimbing_names.append(str(dosen_pembimbing2))
 
-        # Informasi utama
-        self._add_textbox(slide, program, Inches(3.5), Inches(2.0), Inches(4), Inches(0.5), font_size=14, bold=True)
-        self._add_textbox(slide, nama, Inches(3.5), Inches(2.8), Inches(4), Inches(0.6), font_size=19, bold=True)
-        self._add_textbox(slide, nim, Inches(3.5), Inches(3.5), Inches(4), Inches(0.4), font_size=16, bold=True)
-        self._add_textbox(slide, ipk, Inches(3.5), Inches(3.9), Inches(1.8), Inches(0.4), font_size=16, bold=True)
-        self._add_textbox(slide, tak, Inches(5.3), Inches(3.9), Inches(1.8), Inches(0.4), font_size=16, bold=True)
-        self._add_textbox(slide, dosen_wali, Inches(3.5), Inches(4.7), Inches(4), Inches(0.4), font_size=14, bold=True)
+        # ==========================================
+        # POSISI BARU SESUAI TEMPLATE
+        # ==========================================
+        
+        # PROGRAM STUDI : 
+        self._add_textbox(slide, program, Cm(4.5), Cm(3), Cm(10), Cm(1), font_size=14, bold=True, alignment=PP_ALIGN.CENTER)
 
-        # Names box untuk dosen pembimbing (tanpa label)
-        names_left = Inches(3.5)
-        names_top = Inches(5.1)
-        names_width = Inches(4)
-        names_height = Inches(0.8)
+        # # NAMA MAHASISWA : 
+        self._add_textbox(slide, nama, Cm(0.2), Cm(14), Cm(19), Cm(1), font_size=19, bold=True, alignment=PP_ALIGN.CENTER)
 
-        names_box = slide.shapes.add_textbox(names_left, names_top, names_width, names_height)
-        names_tf = names_box.text_frame
-        names_tf.clear()
-
+        # # NIM : 
+        self._add_textbox(slide, nim, Cm(4.4), Cm(15.36), Cm(4), Cm(0.8), font_size=16, bold=True)
+        
+        # # IPK : 
+        self._add_textbox(slide, ipk, Cm(11.85), Cm(15.35), Cm(2), Cm(0.8), font_size=16, bold=True)
+        
+        # # TAK : 
+        self._add_textbox(slide, tak, Cm(15.2), Cm(15.35), Cm(2), Cm(0.8), font_size=16, bold=True)
+        
+        # # DOSEN WALI : 
+        self._add_textbox(slide, dosen_wali, Cm(6.8), Cm(16.3), Cm(12), Cm(0.8), font_size=14, bold=True)
+        
+        # DOSEN PEMBIMBING : 
+        # Dosen Pembimbing Names
         if len(pembimbing_names) > 0:
-            # baris pertama
+            names_box = slide.shapes.add_textbox(Cm(6.8), Cm(17.1), Cm(12), Cm(1.5))
+            names_tf = names_box.text_frame
+            names_tf.clear()
+
+            # Baris pertama
             p_name = names_tf.paragraphs[0]
             p_name.alignment = PP_ALIGN.LEFT
             run_n1 = p_name.add_run()
@@ -250,7 +233,7 @@ class GraduationPPTGenerator:
             run_n1.font.bold = True
             run_n1.font.color.rgb = RGBColor(0, 0, 0)
 
-            # baris berikutnya
+            # Baris berikutnya
             for extra in pembimbing_names[1:]:
                 p_more = names_tf.add_paragraph()
                 p_more.alignment = PP_ALIGN.LEFT
@@ -264,10 +247,37 @@ class GraduationPPTGenerator:
     # =========================
     # Pipeline
     # =========================
-    def generate_ppt_per_program(self, df, output_dir='output'):
+    def generate_ppt_per_program(self, df, output_dir='output', test_mode=False):
         """Generate separate PPT files for each program."""
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+
+        if test_mode:
+            # Test mode: generate single PPT with test data
+            print(f"\nProcessing test data...")
+            program_data = df.copy()
+            
+            prs = Presentation()
+            
+            # Use Cumlaude template for testing
+            template_path = self.templates['CUMLAUDE']
+            self._set_slide_size_to_image_exact(prs, template_path)
+            
+            # Add single test slide
+            student = program_data.iloc[0]
+            nim = student.get('NIM', '')
+            photo_path = self.find_student_photo(nim, 'S1 Teknik Informatika')
+            if photo_path:
+                print(f"  Adding test slide for {student.get('NAMA MAHASISWA', '')} (NIM: {nim})")
+            else:
+                print(f"  Warning: Photo not found for test data (NIM: {nim})")
+            self.create_slide(prs, student, photo_path)
+            
+            # Save test file
+            output_file = os.path.join(output_dir, "TEST_POSITION.pptx")
+            prs.save(output_file)
+            print(f"  Saved: {output_file} (1 test slide)")
+            return
 
         programs = df['PROGRAM STUDI'].unique()
 
@@ -311,52 +321,86 @@ class GraduationPPTGenerator:
             prs.save(output_file)
             print(f"  Saved: {output_file} ({len(program_data)} slides)")
 
-    def process_graduation_data(self, excel_file, output_dir='output'):
+    def create_test_data(self):
+        """Create random test data for testing textbox positions."""
+        test_data = {
+            'PROGRAM STUDI': 'S1 Rekayasa Perangkat Lunak',
+            'NAMA MAHASISWA': 'JOHN DOE TESTING DAN TESTING',
+            'NIM': '1201200001',
+            'IPK': '3.85',
+            'SKOR TAK': '450',
+            'Nama Dosen Wali': 'Dr. Ahmad Wijaya, S.T., M.T.',
+            'Nama Dosen Pembimbing 1': 'Prof. Dr. Budi Santoso, S.T., M.T.',
+            'Nama Dosen Pembimbing 2': 'Dr. Citra Dewi, S.T., M.Kom.',
+            'PREDIKAT KELULUSAN': 'Cumlaude',
+            'TEMPAT DUDUK': '1.1.L'
+        }
+        return pd.DataFrame([test_data])
+
+    def process_graduation_data(self, excel_file, output_dir='output', test_mode=False):
         """Main function to process graduation data."""
-        print(f"Processing graduation data from: {excel_file}")
-        df = self.read_excel_data(excel_file)
-        if df is None:
-            return
+        if test_mode:
+            print("=== TEST MODE: Generating single PPT with random data ===")
+            df = self.create_test_data()
+            print("Using test data for textbox position testing")
+        else:
+            print(f"Processing graduation data from: {excel_file}")
+            df = self.read_excel_data(excel_file)
+            if df is None:
+                return
 
-        required_columns = [
-            'PROGRAM STUDI', 'NAMA MAHASISWA', 'NIM', 'IPK', 'SKOR TAK',
-            'Nama Dosen Wali', 'Nama Dosen Pembimbing 1', 'Nama Dosen Pembimbing 2',
-            'PREDIKAT KELULUSAN', 'TEMPAT DUDUK'
-        ]
-        missing = [c for c in required_columns if c not in df.columns]
-        if missing:
-            print(f"Warning: Missing columns: {missing}")
-            print(f"Available columns: {list(df.columns)}")
+            required_columns = [
+                'PROGRAM STUDI', 'NAMA MAHASISWA', 'NIM', 'IPK', 'SKOR TAK',
+                'Nama Dosen Wali', 'Nama Dosen Pembimbing 1', 'Nama Dosen Pembimbing 2',
+                'PREDIKAT KELULUSAN', 'TEMPAT DUDUK'
+            ]
+            missing = [c for c in required_columns if c not in df.columns]
+            if missing:
+                print(f"Warning: Missing columns: {missing}")
+                print(f"Available columns: {list(df.columns)}")
 
-        if 'PREDIKAT KELULUSAN' in df.columns:
-            print("\nPredikat distribution:")
-            counts = df['PREDIKAT KELULUSAN'].value_counts()
-            for p, c in counts.items():
-                t = self.get_predikat_template(p)
-                print(f"  {p}: {c} students -> {t} template")
+            if 'PREDIKAT KELULUSAN' in df.columns:
+                print("\nPredikat distribution:")
+                counts = df['PREDIKAT KELULUSAN'].value_counts()
+                for p, c in counts.items():
+                    t = self.get_predikat_template(p)
+                    print(f"  {p}: {c} students -> {t} template")
 
-        self.generate_ppt_per_program(df, output_dir)
-        print(f"\nProcessing completed! Check the '{output_dir}' folder for generated PPT files.")
+        self.generate_ppt_per_program(df, output_dir, test_mode)
+        if test_mode:
+            print(f"\nTest PPT generated! Check the '{output_dir}' folder for 'TEST_POSITION.pptx'")
+        else:
+            print(f"\nProcessing completed! Check the '{output_dir}' folder for generated PPT files.")
 
 def main():
     generator = GraduationPPTGenerator()
 
-    # Daftar file excel & subfolder output
-    excel_files = [
-        ('wisuda_pagi.xlsx', 'Wisuda Pagi'),
-        ('wisuda_siang.xlsx', 'Wisuda Siang')
-    ]
+    # TEST MODE: Set to True untuk testing posisi textbox
+    TEST_MODE = True  # Ubah ke True untuk testing
 
-    for excel_file, folder_name in excel_files:
-        if os.path.exists(excel_file):
-            print(f"\n{'='*50}")
-            print(f"Processing: {excel_file}")
-            print(f"Output folder: {folder_name}")
-            print(f"{'='*50}")
-            output_dir = os.path.join('output', folder_name)
-            generator.process_graduation_data(excel_file, output_dir)
-        else:
-            print(f"File not found: {excel_file}")
+    if TEST_MODE:
+        print(f"\n{'='*50}")
+        print("TEST MODE: Generating single PPT for textbox position testing")
+        print(f"{'='*50}")
+        output_dir = os.path.join('output', 'Test')
+        generator.process_graduation_data('', output_dir, test_mode=True)
+    else:
+        # Daftar file excel & subfolder output
+        excel_files = [
+            ('wisuda_pagi.xlsx', 'Wisuda Pagi'),
+            ('wisuda_siang.xlsx', 'Wisuda Siang')
+        ]
+
+        for excel_file, folder_name in excel_files:
+            if os.path.exists(excel_file):
+                print(f"\n{'='*50}")
+                print(f"Processing: {excel_file}")
+                print(f"Output folder: {folder_name}")
+                print(f"{'='*50}")
+                output_dir = os.path.join('output', folder_name)
+                generator.process_graduation_data(excel_file, output_dir)
+            else:
+                print(f"File not found: {excel_file}")
 
 if __name__ == "__main__":
     main()
