@@ -16,7 +16,7 @@ class GraduationPPTGenerator:
     PHOTO_FRAME_W_CM = 5.0     # Lebar frame foto
     PHOTO_FRAME_H_CM = 7.0      # Tinggi frame foto
     FRAME_LEFT_CM = 7.0         # Posisi horizontal (tengah slide)
-    FRAME_TOP_CM = 4.5          # Posisi vertikal (tengah frame merah)
+    FRAME_TOP_CM = 4.85          # Posisi vertikal (tengah frame merah)
 
     def __init__(self):
         self.templates = {
@@ -194,32 +194,29 @@ class GraduationPPTGenerator:
         if pd.notna(dosen_pembimbing2) and str(dosen_pembimbing2).strip() != '':
             pembimbing_names.append(str(dosen_pembimbing2))
 
-        # ==========================================
-        # POSISI BARU SESUAI TEMPLATE
-        # ==========================================
         
         # PROGRAM STUDI : 
-        self._add_textbox(slide, program, Cm(4.5), Cm(3), Cm(10), Cm(1), font_size=14, bold=True, alignment=PP_ALIGN.CENTER)
+        self._add_textbox(slide, program, Cm(4.5), Cm(2.95), Cm(10), Cm(1), font_size=14, bold=True, alignment=PP_ALIGN.CENTER)
 
         # # NAMA MAHASISWA : 
-        self._add_textbox(slide, nama, Cm(0.2), Cm(14), Cm(19), Cm(1), font_size=19, bold=True, alignment=PP_ALIGN.CENTER)
+        self._add_textbox(slide, nama, Cm(0.2), Cm(14.2), Cm(19), Cm(1), font_size=19, bold=True, alignment=PP_ALIGN.CENTER)
 
         # # NIM : 
-        self._add_textbox(slide, nim, Cm(4.4), Cm(15.36), Cm(4), Cm(0.8), font_size=16, bold=True)
+        self._add_textbox(slide, nim, Cm(4.3), Cm(15.36), Cm(4), Cm(0.8), font_size=16, bold=True)
         
         # # IPK : 
-        self._add_textbox(slide, ipk, Cm(11.85), Cm(15.35), Cm(2), Cm(0.8), font_size=16, bold=True)
+        self._add_textbox(slide, ipk, Cm(12.3), Cm(15.35), Cm(2), Cm(0.8), font_size=16, bold=True)
         
         # # TAK : 
-        self._add_textbox(slide, tak, Cm(15.2), Cm(15.35), Cm(2), Cm(0.8), font_size=16, bold=True)
+        self._add_textbox(slide, tak, Cm(15.8), Cm(15.35), Cm(2), Cm(0.8), font_size=16, bold=True)
         
         # # DOSEN WALI : 
-        self._add_textbox(slide, dosen_wali, Cm(6.8), Cm(16.3), Cm(12), Cm(0.8), font_size=14, bold=True)
+        self._add_textbox(slide, dosen_wali, Cm(6.3), Cm(16.45), Cm(12), Cm(0.8), font_size=14, bold=True)
         
         # DOSEN PEMBIMBING : 
         # Dosen Pembimbing Names
         if len(pembimbing_names) > 0:
-            names_box = slide.shapes.add_textbox(Cm(6.8), Cm(17.1), Cm(12), Cm(1.5))
+            names_box = slide.shapes.add_textbox(Cm(6.3), Cm(17.25), Cm(12), Cm(1.5))
             names_tf = names_box.text_frame
             names_tf.clear()
 
