@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import pandas as pd
 import random
 from PIL import Image
@@ -369,11 +370,32 @@ class GraduationPPTGenerator:
         else:
             print(f"\nProcessing completed! Check the '{output_dir}' folder for generated PPT files.")
 
+def load_config():
+    """Load configuration from config.json file."""
+    config_file = 'config.json'
+    default_config = {"TEST_MODE": False}
+    
+    try:
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                return config
+        else:
+            # Create default config file if it doesn't exist
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(default_config, f, indent=4)
+                print(f"Created default config file: {config_file}")
+            return default_config
+    except Exception as e:
+        print(f"Error loading config: {e}. Using default settings.")
+        return default_config
+
 def main():
     generator = GraduationPPTGenerator()
 
-    # TEST MODE: Set to True untuk testing posisi textbox
-    TEST_MODE = True  # Ubah ke True untuk testing
+    # Load TEST_MODE from config file
+    config = load_config()
+    TEST_MODE = config.get('TEST_MODE', False)
 
     if TEST_MODE:
         print(f"\n{'='*50}")
