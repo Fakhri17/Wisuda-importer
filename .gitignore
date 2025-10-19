@@ -19,3 +19,5 @@ templates/
 output/
 
 *.xlsx
+
+config.json

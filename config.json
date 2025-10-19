@@ -1,4 +1,0 @@
-{
-    "TEST_MODE": true,
-    "description": "Set TEST_MODE to true for testing textbox positions, false for normal operation"
-}
