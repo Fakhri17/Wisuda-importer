@@ -17,6 +17,7 @@ photos/
 templates/
 
 output/
+output_revisi/
 
 *.xlsx
 

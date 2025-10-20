@@ -245,8 +245,32 @@ class GraduationPPTGenerator:
     # =========================
     # Pipeline
     # =========================
-    def generate_ppt_per_program(self, df, output_dir='output', test_mode=False):
-        """Generate separate PPT files for each program."""
+    def extract_seat_side(self, tempat_duduk):
+        """Extract seat side (L/R) from seat position."""
+        if pd.isna(tempat_duduk) or str(tempat_duduk).strip() == '':
+            return 'Z'
+        try:
+            parts = str(tempat_duduk).split('.')
+            if len(parts) >= 3:
+                return parts[2].upper()
+        except Exception:
+            pass
+        return 'Z'
+
+    def get_predikat_priority(self, predikat):
+        """Get priority for sorting (1=summa, 2=cumlaude, 3=non-predikat)."""
+        if pd.isna(predikat) or predikat == '':
+            return 3
+        predikat_str = str(predikat).lower().strip()
+        if 'summa' in predikat_str and 'cumlaude' in predikat_str:
+            return 1
+        elif 'cumlaude' in predikat_str and 'summa' not in predikat_str:
+            return 2
+        else:
+            return 3
+
+    def generate_ppt_revisi(self, df, output_dir='output_revisi', test_mode=False):
+        """Generate PPT files separated by session and seat position."""
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
@@ -264,7 +288,7 @@ class GraduationPPTGenerator:
             # Add single test slide
             student = program_data.iloc[0]
             nim = student.get('NIM', '')
-            photo_path = self.find_student_photo(nim, 'S1 Teknik Informatika')
+            photo_path = self.find_student_photo(nim, 'S1 Rekayasa Perangkat Lunak')
             if photo_path:
                 print(f"  Adding test slide for {student.get('NAMA MAHASISWA', '')} (NIM: {nim})")
             else:
@@ -277,47 +301,81 @@ class GraduationPPTGenerator:
             print(f"  Saved: {output_file} (1 test slide)")
             return
 
-        programs = df['PROGRAM STUDI'].unique()
-
-        for program in programs:
-            if pd.isna(program) or str(program).strip() == '':
+        # Group by session then program, and write two PPTs (L/R) per program
+        sessions = ['Pagi', 'Siang']
+        sides = ['L', 'R']
+        
+        for session in sessions:
+            # Filter by session
+            session_data = df[df['SESI'] == session].copy()
+            if len(session_data) == 0:
+                print(f"\nNo data for session: {session}")
                 continue
+            
+            # Session folder name
+            session_folder_name = f"Wisuda {session}"
+            session_output_dir = os.path.join(output_dir, session_folder_name)
+            if not os.path.exists(session_output_dir):
+                os.makedirs(session_output_dir)
+            
+            # Iterate programs in this session
+            programs = [p for p in session_data['PROGRAM STUDI'].dropna().unique() if str(p).strip() != '']
+            print(f"\nProcessing session: {session} -> {len(programs)} programs")
+            for program in programs:
+                prog_data = session_data[session_data['PROGRAM STUDI'] == program].copy()
+                if len(prog_data) == 0:
+                    continue
+                
+                # Prepare program folder
+                safe_program_name = re.sub(r'[^\w\s-]', '', str(program)).strip()
+                safe_program_name = re.sub(r'[-\s]+', '_', safe_program_name)
+                program_output_dir = os.path.join(session_output_dir, safe_program_name)
+                if not os.path.exists(program_output_dir):
+                    os.makedirs(program_output_dir)
+                
+                print(f"  Program: {program} -> {len(prog_data)} students")
+                
+                # Produce two PPT files per program: L and R
+                for side in sides:
+                    side_data = prog_data.copy()
+                    side_data['seat_side'] = side_data['TEMPAT DUDUK'].apply(self.extract_seat_side)
+                    side_data = side_data[side_data['seat_side'] == side].copy()
+                    if len(side_data) == 0:
+                        print(f"    Skip Duduk {side}: no students")
+                        continue
+                    
+                    # Sort by predikat then seat position
+                    side_data['seat_sort'] = side_data['TEMPAT DUDUK'].apply(self.extract_seat_position)
+                    side_data['predikat_priority'] = side_data['PREDIKAT KELULUSAN'].apply(self.get_predikat_priority)
+                    side_data = side_data.sort_values(['predikat_priority', 'seat_sort'])
+                    print(f"    Duduk {side}: {len(side_data)} students")
+                    
+                    # Create presentation with first student's template for exact slide size
+                    prs = Presentation()
+                    try:
+                        first_row = side_data.iloc[0]
+                        first_template_name = self.get_predikat_template(first_row.get('PREDIKAT KELULUSAN', ''))
+                        first_template_path = self.templates.get(first_template_name, self.templates['Non Predikat'])
+                    except Exception:
+                        first_template_path = self.templates['Non Predikat']
+                    self._set_slide_size_to_image_exact(prs, first_template_path)
+                    
+                    # Add slides
+                    for _, student in side_data.iterrows():
+                        nim = student.get('NIM', '')
+                        photo_path = self.find_student_photo(nim, program)
+                        if photo_path:
+                            print(f"      Adding slide for {student.get('NAMA MAHASISWA', '')} (NIM: {nim})")
+                        else:
+                            print(f"      Warning: Photo not found for {student.get('NAMA MAHASISWA', '')} (NIM: {nim})")
+                        self.create_slide(prs, student, photo_path)
+                    
+                    # Save to program folder
+                    file_name = f"duduk_{side.lower()}.pptx"
+                    output_file = os.path.join(program_output_dir, file_name)
+                    prs.save(output_file)
+                    print(f"    Saved: {output_file} ({len(side_data)} slides)")
 
-            print(f"\nProcessing program: {program}")
-            program_data = df[df['PROGRAM STUDI'] == program].copy()
-
-            # Sort by seat position
-            program_data['seat_sort'] = program_data['TEMPAT DUDUK'].apply(self.extract_seat_position)
-            program_data = program_data.sort_values('seat_sort')
-
-            prs = Presentation()
-
-            # Tentukan template agar ukuran slide match EXACT background
-            try:
-                first_row = program_data.iloc[0]
-                first_template_name = self.get_predikat_template(first_row.get('PREDIKAT KELULUSAN', ''))
-                first_template_path = self.templates.get(first_template_name, self.templates['Non Predikat'])
-            except Exception:
-                first_template_path = self.templates['Non Predikat']
-
-            self._set_slide_size_to_image_exact(prs, first_template_path)
-
-            # Tambahkan slide per mahasiswa
-            for _, student in program_data.iterrows():
-                nim = student.get('NIM', '')
-                photo_path = self.find_student_photo(nim, program)
-                if photo_path:
-                    print(f"  Adding slide for {student.get('NAMA MAHASISWA', '')} (NIM: {nim})")
-                else:
-                    print(f"  Warning: Photo not found for {student.get('NAMA MAHASISWA', '')} (NIM: {nim})")
-                self.create_slide(prs, student, photo_path)
-
-            # Simpan file
-            safe_program_name = re.sub(r'[^\w\s-]', '', str(program)).strip()
-            safe_program_name = re.sub(r'[-\s]+', '_', safe_program_name)
-            output_file = os.path.join(output_dir, f"{safe_program_name}.pptx")
-            prs.save(output_file)
-            print(f"  Saved: {output_file} ({len(program_data)} slides)")
 
     def create_test_data(self):
         """Create random test data for testing textbox positions."""
@@ -331,27 +389,64 @@ class GraduationPPTGenerator:
             'Nama Dosen Pembimbing 1': 'Prof. Dr. Budi Santoso, S.T., M.T.',
             'Nama Dosen Pembimbing 2': 'Dr. Citra Dewi, S.T., M.Kom.',
             'PREDIKAT KELULUSAN': 'Cumlaude',
-            'TEMPAT DUDUK': '1.1.L'
+            'TEMPAT DUDUK': '1.1.L',
+            'SESI': 'Pagi'
         }
         return pd.DataFrame([test_data])
 
-    def process_graduation_data(self, excel_file, output_dir='output', test_mode=False):
+    def read_combined_data(self):
+        """Read and combine data from both pagi and siang Excel files."""
+        combined_data = []
+        
+        # Read pagi data
+        if os.path.exists('wisuda_pagi.xlsx'):
+            print("Reading wisuda_pagi.xlsx...")
+            df_pagi = self.read_excel_data('wisuda_pagi.xlsx')
+            if df_pagi is not None:
+                df_pagi['SESI'] = 'Pagi'
+                combined_data.append(df_pagi)
+                print(f"  Found {len(df_pagi)} students in Pagi session")
+        else:
+            print("Warning: wisuda_pagi.xlsx not found")
+        
+        # Read siang data
+        if os.path.exists('wisuda_siang.xlsx'):
+            print("Reading wisuda_siang.xlsx...")
+            df_siang = self.read_excel_data('wisuda_siang.xlsx')
+            if df_siang is not None:
+                df_siang['SESI'] = 'Siang'
+                combined_data.append(df_siang)
+                print(f"  Found {len(df_siang)} students in Siang session")
+        else:
+            print("Warning: wisuda_siang.xlsx not found")
+        
+        if not combined_data:
+            print("Error: No data found in both Excel files")
+            return None
+        
+        # Combine all data
+        df_combined = pd.concat(combined_data, ignore_index=True)
+        print(f"\nTotal combined data: {len(df_combined)} students")
+        return df_combined
+
+    def process_graduation_data(self, output_dir='output_revisi', test_mode=False):
         """Main function to process graduation data."""
         if test_mode:
             print("=== TEST MODE: Generating single PPT with random data ===")
             df = self.create_test_data()
             print("Using test data for textbox position testing")
         else:
-            print(f"Processing graduation data from: {excel_file}")
-            df = self.read_excel_data(excel_file)
+            print("Processing graduation data from Excel files...")
+            df = self.read_combined_data()
             if df is None:
                 return
 
             required_columns = [
                 'PROGRAM STUDI', 'NAMA MAHASISWA', 'NIM', 'IPK', 'SKOR TAK',
                 'Nama Dosen Wali', 'Nama Dosen Pembimbing 1', 'Nama Dosen Pembimbing 2',
-                'PREDIKAT KELULUSAN', 'TEMPAT DUDUK'
+                'PREDIKAT KELULUSAN', 'TEMPAT DUDUK', 'SESI'
             ]
+            
             missing = [c for c in required_columns if c not in df.columns]
             if missing:
                 print(f"Warning: Missing columns: {missing}")
@@ -364,7 +459,8 @@ class GraduationPPTGenerator:
                     t = self.get_predikat_template(p)
                     print(f"  {p}: {c} students -> {t} template")
 
-        self.generate_ppt_per_program(df, output_dir, test_mode)
+        self.generate_ppt_revisi(df, output_dir, test_mode)
+            
         if test_mode:
             print(f"\nTest PPT generated! Check the '{output_dir}' folder for 'TEST_POSITION.pptx'")
         else:
@@ -401,25 +497,16 @@ def main():
         print(f"\n{'='*50}")
         print("TEST MODE: Generating single PPT for textbox position testing")
         print(f"{'='*50}")
-        output_dir = os.path.join('output', 'Test')
-        generator.process_graduation_data('', output_dir, test_mode=True)
+        output_dir = os.path.join('output_revisi', 'Test')
+        generator.process_graduation_data(output_dir, test_mode=True)
     else:
-        # Daftar file excel & subfolder output
-        excel_files = [
-            ('wisuda_pagi.xlsx', 'Wisuda Pagi'),
-            ('wisuda_siang.xlsx', 'Wisuda Siang')
-        ]
-
-        for excel_file, folder_name in excel_files:
-            if os.path.exists(excel_file):
-                print(f"\n{'='*50}")
-                print(f"Processing: {excel_file}")
-                print(f"Output folder: {folder_name}")
-                print(f"{'='*50}")
-                output_dir = os.path.join('output', folder_name)
-                generator.process_graduation_data(excel_file, output_dir)
-            else:
-                print(f"File not found: {excel_file}")
+        # Process combined data with session separation
+        print(f"\n{'='*50}")
+        print("Processing data with session and seat separation")
+        print(f"{'='*50}")
+        
+        output_dir = 'output_revisi'
+        generator.process_graduation_data(output_dir)
 
 if __name__ == "__main__":
     main()
