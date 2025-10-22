@@ -19,6 +19,7 @@ templates/
 output/
 output_revisi/
 output_revisi_1/
+output_revisi_pt/
 
 *.xlsx
 
