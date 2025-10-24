@@ -25,6 +25,7 @@ class GraduationPPTGenerator:
             'CUMLAUDE': 'templates/template-pt-atas/Slide2.PNG',
             'SUMMA CUMLAUDE': 'templates/template-pt-atas/Slide3.PNG',
         }
+        self.company_lookup = self._load_company_lookup()
 
     # =========================
     # Helpers ukuran & gambar
@@ -84,6 +85,35 @@ class GraduationPPTGenerator:
     # =========================
     # Data helpers
     # =========================
+    def _load_company_lookup(self):
+        """Load company lookup from list_pekerjaan.xlsx file."""
+        try:
+            if os.path.exists('list_pekerjaan.xlsx'):
+                df = pd.read_excel('list_pekerjaan.xlsx')
+                print(f"Successfully read list_pekerjaan.xlsx with {len(df)} rows")
+                print(f"Columns in list_pekerjaan.xlsx: {list(df.columns)}")
+                
+                # Create lookup dictionary: nama_uppercase -> nama_perusahaan
+                lookup = {}
+                for _, row in df.iterrows():
+                    nama = str(row.get('Nama', '')).strip()
+                    nama_perusahaan = str(row.get('Nama Perusahaan', '')).strip()
+                    if nama and nama != 'nan' and nama_perusahaan and nama_perusahaan != 'nan':
+                        # Store with uppercase key for case-insensitive matching
+                        nama_upper = nama.upper()
+                        lookup[nama_upper] = nama_perusahaan
+                        print(f"Added to lookup: '{nama_upper}' -> '{nama_perusahaan}'")
+                
+                print(f"Loaded {len(lookup)} company entries from list_pekerjaan.xlsx")
+                print(f"Sample lookup entries: {dict(list(lookup.items())[:3])}")
+                return lookup
+            else:
+                print("Warning: list_pekerjaan.xlsx not found")
+                return {}
+        except Exception as e:
+            print(f"Error loading company lookup: {e}")
+            return {}
+
     def read_excel_data(self, file_path):
         """Read Excel file and return DataFrame."""
         try:
@@ -186,7 +216,16 @@ class GraduationPPTGenerator:
         ipk = student_data.get('IPK', '')
         tak = student_data.get('SKOR TAK', '')
         dosen_wali = student_data.get('Nama Dosen Wali', '')
-        perusahaan = "PT. Mencari Cinta SeJATI"
+        
+        # Get company name from lookup using UPPERCASE matching
+        nama_upper = nama.upper() if nama else ''
+        print(f"Looking for company for student: '{nama}' (searching as: '{nama_upper}')")
+        print(f"Available lookup keys: {list(self.company_lookup.keys())[:5]}...")
+        perusahaan = self.company_lookup.get(nama_upper, None)
+        if perusahaan:
+            print(f"Found company for '{nama}' -> '{nama_upper}': {perusahaan}")
+        else:
+            print(f"No company found for '{nama}' -> '{nama_upper}'")
 
         dosen_pembimbing1 = student_data.get('Nama Dosen Pembimbing 1', '')
         dosen_pembimbing2 = student_data.get('Nama Dosen Pembimbing 2', '')
@@ -212,11 +251,12 @@ class GraduationPPTGenerator:
         # TAK : 
         self._add_textbox(slide, tak, Cm(15.6), Cm(15.25), Cm(2), Cm(0.8), font_size=14, bold=True)
 
-        # PERUSAHAAN : 
-        # Baris "DITERIMA DI:" label
-        self._add_textbox(slide, "DITERIMA DI :", Cm(2.6), Cm(16.17), Cm(4), Cm(0.8), font_size=12, bold=True, upper=True)
-        # Baris perusahaan (nama perusahaan)
-        self._add_textbox(slide, perusahaan, Cm(5.7), Cm(16.17), Cm(6), Cm(0.8), font_size=12, bold=True, upper=True)
+        # PERUSAHAAN : Only show if company found in lookup
+        if perusahaan:
+            # Baris "DITERIMA DI:" label
+            self._add_textbox(slide, "DITERIMA DI :", Cm(2.6), Cm(16.17), Cm(4), Cm(0.8), font_size=12, bold=True, upper=True)
+            # Baris perusahaan (nama perusahaan)
+            self._add_textbox(slide, perusahaan, Cm(5.7), Cm(16.17), Cm(6), Cm(0.8), font_size=12, bold=True, upper=True)
         
         # DOSEN WALI : 
         self._add_textbox(slide, dosen_wali, Cm(5.7), Cm(16.94), Cm(12), Cm(0.8), font_size=12, bold=True)
